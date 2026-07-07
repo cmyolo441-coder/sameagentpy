@@ -86,6 +86,15 @@ def get_provider(config: Config) -> LLMProvider:
 
         return TogetherProvider(model, temp, max_tokens, key)
 
+    if provider == "nvidia":
+        if not config.nvidia_api_key:
+            raise ProviderError("NVIDIA_API_KEY is not set.")
+        from .openai_provider import OpenAIProvider
+
+        return OpenAIProvider(
+            model, temp, max_tokens, config.nvidia_api_key, config.nvidia_base_url
+        )
+
     if provider == "ollama":
         from .ollama_provider import OllamaProvider
 

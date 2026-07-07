@@ -207,6 +207,7 @@ class GoalMode:
 
         def on_thinking(iteration: int) -> None:
             if iteration > 0:
+                renderer.finish()
                 renderer.start_thinking("reasoning")
 
         final = self.app.agent.send(

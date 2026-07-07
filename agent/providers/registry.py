@@ -30,6 +30,7 @@ PROVIDERS: dict[str, ProviderSpec] = {
     "mistral": ProviderSpec("mistral", "mistral-large-latest", True, "MISTRAL_API_KEY", True, "Mistral AI"),
     "together": ProviderSpec("together", "meta-llama/Llama-3.3-70B-Instruct-Turbo", True, "TOGETHER_API_KEY", True, "Together AI"),
     "ollama": ProviderSpec("ollama", "llama3.1", False, None, True, "Local Ollama (offline)"),
+    "nvidia": ProviderSpec("nvidia", "z-ai/glm-5.2", True, "NVIDIA_API_KEY", True, "NVIDIA NIM (hosted models)"),
 }
 
 

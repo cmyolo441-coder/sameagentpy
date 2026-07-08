@@ -15,6 +15,44 @@ from typing import Any
 
 from .systemprompts import DEFAULT_SYSTEM_PROMPT
 
+
+def _build_full_system_prompt() -> str:
+    """Concatenate *every* prompt defined in ``systemprompts`` into one string.
+
+    Uses runtime introspection so the (private) prompt contents are never
+    touched directly by hand — the interpreter collects them. Containers
+    (dicts/lists) are flattened and string values are deduplicated so the same
+    base text is not sent multiple times.
+    """
+    from . import systemprompts as _sp
+
+    parts: list[str] = []
+    seen_ids: set[int] = set()
+    seen_text: set[str] = set()
+
+    def _collect(obj: object, label: str) -> None:
+        oid = id(obj)
+        if oid in seen_ids:
+            return
+        seen_ids.add(oid)
+        if isinstance(obj, str):
+            if obj in seen_text:
+                return
+            seen_text.add(obj)
+            parts.append(f"# {label}\n{obj}")
+        elif isinstance(obj, dict):
+            for key, val in obj.items():
+                _collect(val, f"{label}.{key}")
+        elif isinstance(obj, (list, tuple)):
+            for idx, val in enumerate(obj):
+                _collect(val, f"{label}[{idx}]")
+
+    for name in dir(_sp):
+        if name.startswith("_"):
+            continue
+        _collect(getattr(_sp, name), name)
+    return "\n\n".join(parts)
+
 try:
     from dotenv import load_dotenv
 
@@ -97,8 +135,17 @@ class Config:
         default_factory=lambda: _env("OLLAMA_BASE_URL", default="http://localhost:11434") or "http://localhost:11434"
     )
 
+    # OpenCode — OpenAI-compatible custom endpoint (e.g. opencode.ai).
+    opencode_api_key: str | None = field(
+        default_factory=lambda: _env("OPENCODE_API_KEY")
+    )
+    opencode_base_url: str = field(
+        default_factory=lambda: _env("OPENCODE_BASE_URL", default="https://opencode.ai/v1")
+        or "https://opencode.ai/v1"
+    )
+
     # Agent behaviour.
-    system_prompt: str = DEFAULT_SYSTEM_PROMPT
+    system_prompt: str = _build_full_system_prompt()
     enable_tools: bool = True
     auto_approve_tools: bool = False
     max_tool_iterations: int = 12
@@ -117,9 +164,10 @@ class Config:
             "zyloo": "zyloo/glm-5.1",
             "gemini": "gemini-1.5-flash",
             "mistral": "mistral-large-latest",
-            "together": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-            "nvidia": "z-ai/glm-5.2",
-        }
+                "together": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                "nvidia": "z-ai/glm-5.2",
+                "opencode": "mimo-v2.5-free",
+            }
     )
 
     # Known models per provider (used for /models listing and switching).
@@ -127,13 +175,14 @@ class Config:
         default_factory=lambda: {
             "zen": ["mimo-v2.5-free", "big-pickle", "deepseek-v4-flash-free"],
             "zyloo": ["zyloo/glm-5.1"],
-            "nvidia": [
-                "z-ai/glm-5.2",
-                "stepfun-ai/step-3.7-flash",
-                "moonshotai/kimi-k2.6",
-                "deepseek-ai/deepseek-v4-pro",
-            ],
-        }
+                "nvidia": [
+                    "z-ai/glm-5.2",
+                    "stepfun-ai/step-3.7-flash",
+                    "moonshotai/kimi-k2.6",
+                    "deepseek-ai/deepseek-v4-pro",
+                ],
+                "opencode": ["mimo-v2.5-free", "hy3-free"],
+            }
     )
 
     def known_models(self) -> list[str]:
@@ -195,4 +244,5 @@ class Config:
             "zyloo": bool(self.zyloo_api_key),
             "nvidia": bool(self.nvidia_api_key),
             "ollama": True,  # local, no key required
+            "opencode": bool(self.opencode_api_key),
         }.get(self.provider, False)

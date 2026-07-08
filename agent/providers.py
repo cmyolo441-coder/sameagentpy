@@ -106,7 +106,7 @@ class AnthropicProvider(BaseProvider):
                 model=self.model,
                 system=system or None,
                 messages=convo,
-                max_tokens=128000,
+                max_tokens=200000,
                 temperature=self.config.temperature,
             )
         except Exception as exc:  # noqa: BLE001
@@ -121,7 +121,7 @@ class AnthropicProvider(BaseProvider):
                 model=self.model,
                 system=system or None,
                 messages=convo,
-                max_tokens=128000,
+                max_tokens=200000,
                 temperature=self.config.temperature,
             ) as stream:
                 for text in stream.text_stream:

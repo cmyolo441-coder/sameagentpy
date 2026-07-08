@@ -82,7 +82,7 @@ class Config:
     provider: str = field(default_factory=lambda: _env("AGENT_PROVIDER", default="zen") or "zen")
     model: str | None = field(default_factory=lambda: _env("AGENT_MODEL"))
     temperature: float = 0.7
-    max_tokens: int = 128000
+    max_tokens: int = 200000
     stream: bool = True
 
     # Provider credentials / endpoints.
@@ -215,6 +215,13 @@ class Config:
     # ------------------------------------------------------------------
     # Persistence helpers
     # ------------------------------------------------------------------
+    # Fields that are ALWAYS rebuilt at runtime and must never be restored from
+    # (or written to) the on-disk config. ``system_prompt`` is derived fresh from
+    # systemprompts.py on every launch via ``_build_full_system_prompt()`` — an
+    # old, smaller prompt persisted in an earlier session must never override the
+    # full prompt, or the model silently receives a truncated system prompt.
+    _NON_PERSISTED = ("system_prompt", "max_tokens")
+
     @classmethod
     def load(cls) -> "Config":
         cfg = cls()
@@ -224,6 +231,9 @@ class Config:
                 for key, value in data.items():
                     if key.startswith("_"):
                         continue
+                    if key in cls._NON_PERSISTED:
+                        # Ignore any stale copy on disk; keep the freshly-built value.
+                        continue
                     if hasattr(cfg, key) and value is not None:
                         setattr(cfg, key, value)
             except (json.JSONDecodeError, OSError):
@@ -232,7 +242,11 @@ class Config:
 
     def save(self) -> None:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        data = {k: v for k, v in asdict(self).items() if not k.startswith("_")}
+        data = {
+            k: v
+            for k, v in asdict(self).items()
+            if not k.startswith("_") and k not in self._NON_PERSISTED
+        }
         CONFIG_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     def has_credentials(self) -> bool:

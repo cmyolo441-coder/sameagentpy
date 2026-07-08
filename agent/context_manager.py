@@ -21,10 +21,15 @@ MODEL_CONTEXT_BUDGET: dict[str, int] = {
     # 1-million-token context models.
     "moonshotai/kimi-k2.6": 1_000_000,
     "z-ai/glm-5.2": 1_000_000,
+    "deepseek-ai/deepseek-v4-pro": 1_000_000,
     "zyloo/glm-5.1": 1_000_000,
-    "mimo-v2.5-free": 1_000_000,
-    # 200k context for everything else.
+    # 200k context models.
+    "mimo-v2.5-free": 200_000,
+    "big-pickle": 200_000,
+    "deepseek-v4-flash-free": 200_000,
     "hy3-free": 200_000,
+    "stepfun-ai/step-3.7-flash": 200_000,
+    # 200k context for everything else.
     "gpt-4o": 200_000,
     "gpt-4o-mini": 200_000,
     "gpt-4-turbo": 200_000,
@@ -40,13 +45,9 @@ MODEL_CONTEXT_BUDGET: dict[str, int] = {
     "llama-3.3-70b-versatile": 200_000,
     "mistral-large-latest": 200_000,
     "meta-llama/Llama-3.3-70B-Instruct-Turbo": 200_000,
-    "big-pickle": 200_000,
-    "deepseek-v4-flash-free": 200_000,
     "llama3.1": 200_000,
     "llama3.2": 200_000,
     "qwen2.5": 200_000,
-    "stepfun-ai/step-3.7-flash": 200_000,
-    "deepseek-ai/deepseek-v4-pro": 200_000,
 }
 
 DEFAULT_BUDGET = 200_000

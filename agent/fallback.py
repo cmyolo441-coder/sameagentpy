@@ -21,7 +21,13 @@ from .logging_config import get_logger
 log = get_logger("agent.fallback")
 
 # Sensible default chain: start free, escalate to paid if configured.
+# Fireworks' three 1M-context models come first so a rate-limited Fireworks
+# run switches to a sibling model (same key/endpoint) before leaving the
+# provider. All entries below are OpenAI-compatible except anthropic.
 DEFAULT_CHAIN: list[str] = [
+    "fireworks:accounts/fireworks/models/kimi-k2p7-code",
+    "fireworks:accounts/fireworks/models/glm-5p2",
+    "fireworks:accounts/fireworks/models/qwen3p7-plus",
     "zen:mimo-v2.5-free",
     "zen:big-pickle",
     "zen:deepseek-v4-flash-free",

@@ -26,6 +26,32 @@ class ToolApprovalDenied(Exception):
     pass
 
 
+# Substrings that mark a provider error as transient (rate limit, overload,
+# gateway hiccup). When one of these is seen we switch models instead of
+# crashing the whole run.
+_TRANSIENT_MARKERS = (
+    "rate limit",
+    "rate_limit",
+    "429",
+    "500",
+    "502",
+    "503",
+    "504",
+    "overloaded",
+    "timeout",
+    "timed out",
+    "temporarily",
+    "connection",
+    "service unavailable",
+)
+
+
+def _is_transient(exc: Exception) -> bool:
+    """True if ``exc`` looks like a retryable/transient provider error."""
+    msg = str(exc).lower()
+    return any(marker in msg for marker in _TRANSIENT_MARKERS)
+
+
 class Agent:
     def __init__(
         self,
@@ -40,6 +66,9 @@ class Agent:
         self.conversation = conversation
         self.guardrails = Guardrails(max_calls_per_turn=config.max_tool_iterations * 3)
         self._partial = ""  # text streamed so far in the current round
+        # Notified with (from_label, to_label) whenever a transient error forces
+        # an automatic model switch. Set by the caller (see App/GoalMode).
+        self.on_model_switch: Callable[[str, str], None] | None = None
 
     def _wrap_delta(self, on_delta, cancel_token):
         """Wrap the delta callback so it tracks partial text and honors ESC."""
@@ -63,6 +92,117 @@ class Agent:
         if provider == "anthropic":
             return self.registry.anthropic_schemas()
         return self.registry.openai_schemas()
+
+    # ------------------------------------------------------------------
+    def _chat_with_fallback(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+        on_delta: Callable[[str], None] | None,
+    ) -> LLMResponse:
+        """Call the active provider; on a transient error switch models.
+
+        A rate limit (429) or transient 5xx used to bubble up and crash the
+        run. Instead we walk the fallback chain, swapping ``self.provider`` for
+        the next healthy model and retrying. Only providers that share the
+        current provider's message/tool-call format are used, so a switch is
+        safe mid-conversation. Non-transient errors (bad request, auth) are
+        re-raised unchanged.
+        """
+        try:
+            resp = self._provider_chat(self.provider, messages, tools, on_delta)
+            self._record_chain_success()
+            return resp
+        except _StopStreaming:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            if not _is_transient(exc):
+                raise
+
+            from .fallback import get_fallback_chain
+            from .providers.factory import get_provider as _get_provider
+
+            chain = get_fallback_chain()
+            chain.record_failure(self.config.provider, self.config.resolved_model())
+
+            current_family = self._format_family(self.config.provider)
+            last_exc = exc
+            tried: set[str] = {f"{self.config.provider}:{self.config.resolved_model()}"}
+
+            for _ in range(len(chain.entries) + 1):
+                entry = chain.pick()
+                if entry is None:
+                    break
+                key = f"{entry.provider}:{entry.model}"
+                if key in tried:
+                    chain.record_failure(entry.provider, entry.model)
+                    continue
+                tried.add(key)
+                # Only switch within the same message-format family so the
+                # in-flight conversation stays valid.
+                if self._format_family(entry.provider) != current_family:
+                    continue
+                try:
+                    fb_config = self.config
+                    from_label = f"{fb_config.provider}/{fb_config.resolved_model()}"
+                    fb_config.provider = entry.provider
+                    fb_config.model = entry.model
+                    new_provider = _get_provider(fb_config)
+                    to_label = f"{entry.provider}/{entry.model}"
+                    if self.on_model_switch is not None:
+                        try:
+                            self.on_model_switch(from_label, to_label)
+                        except Exception:  # noqa: BLE001
+                            pass
+                    resp = self._provider_chat(new_provider, messages, tools, on_delta)
+                    # Success — adopt the new provider for the rest of the run.
+                    self.provider = new_provider
+                    chain.record_success(entry.provider, entry.model)
+                    return resp
+                except _StopStreaming:
+                    raise
+                except Exception as exc2:  # noqa: BLE001
+                    last_exc = exc2
+                    chain.record_failure(entry.provider, entry.model)
+                    if not _is_transient(exc2):
+                        # A hard error on the fallback: keep walking the chain.
+                        continue
+
+            # Everything on the chain failed. Surface a clean message instead of
+            # a raw traceback so the run can end gracefully.
+            raise RuntimeError(
+                f"All models are rate-limited or unavailable right now. "
+                f"Last error: {last_exc}"
+            ) from last_exc
+
+    @staticmethod
+    def _format_family(provider: str) -> str:
+        """Message/tool-call wire format used by a provider.
+
+        Anthropic uses its own content-block format; everyone else here is
+        OpenAI-compatible. Switching only within a family keeps an in-flight
+        conversation valid.
+        """
+        return "anthropic" if provider.lower() == "anthropic" else "openai"
+
+    def _provider_chat(
+        self,
+        provider: LLMProvider,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+        on_delta: Callable[[str], None] | None,
+    ) -> LLMResponse:
+        return provider.chat(messages, tools=tools, on_delta=on_delta)
+
+    def _record_chain_success(self) -> None:
+        try:
+            from .fallback import get_fallback_chain
+
+            get_fallback_chain().record_success(
+                self.config.provider, self.config.resolved_model()
+            )
+        except Exception:  # noqa: BLE001
+            pass
 
     def send(
         self,
@@ -106,7 +246,7 @@ class Agent:
                 on_thinking(iteration)
 
             self._partial = ""
-            response: LLMResponse = self.provider.chat(
+            response: LLMResponse = self._chat_with_fallback(
                 self.conversation.messages,
                 tools=tools,
                 on_delta=wrapped_delta,

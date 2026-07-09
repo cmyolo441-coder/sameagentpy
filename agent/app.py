@@ -79,6 +79,14 @@ class App:
             )
             return False
         self.agent = Agent(self.config, provider, self.registry, self.conversation)
+
+        def _on_model_switch(from_label: str, to_label: str) -> None:
+            # Keep the visible config in sync with the model the agent switched
+            # to, and let the user know why the model changed.
+            self.ui.warn(f"Rate limit hit on {from_label} — switching to {to_label} and continuing.")
+            log.warning("auto model switch: %s -> %s", from_label, to_label)
+
+        self.agent.on_model_switch = _on_model_switch
         log.info("Agent ready: provider=%s model=%s", self.config.provider, self.config.resolved_model())
         return True
 

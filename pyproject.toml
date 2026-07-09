@@ -3,13 +3,13 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "terminal-agent"
+name = "sameagentpy"
 version = "1.0.0"
 description = "The world's most advanced terminal AI agent."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "termianlagent" }]
+authors = [{ name = "cmyolo441-coder" }]
 keywords = ["ai", "agent", "terminal", "cli", "llm", "tui"]
 dependencies = [
     "rich>=13.7.0",
@@ -23,10 +23,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "ruff>=0.4.0"]
+dev = ["pytest>=8.0", "ruff>=0.4.0", "pyinstaller>=6.0"]
 tokens = ["tiktoken>=0.7.0"]
 
 [project.scripts]
+sameagentpy = "agent.app:main"
 agent = "agent.app:main"
 
 [tool.setuptools.packages.find]

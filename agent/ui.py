@@ -584,11 +584,6 @@ class ResponseRenderer:
     def start_thinking(self, label: str | None = None) -> None:
         self._label = label
         self._thinking = True
-        if self._live is not None:
-            try:
-                self._live.stop()
-            except Exception:
-                pass
         self._live = Live(console=self.console, refresh_per_second=30)
         self._live.start()
         if self.animations:

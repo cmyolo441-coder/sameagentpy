@@ -20,7 +20,7 @@ def get_provider(config: Config) -> LLMProvider:
     provider = config.provider.lower()
     model = config.resolved_model()
     temp = config.temperature
-    max_tokens = config.max_tokens
+    max_tokens = config.resolved_max_tokens()
 
     if provider == "openai":
         if not config.openai_api_key:
@@ -86,14 +86,13 @@ def get_provider(config: Config) -> LLMProvider:
 
         return TogetherProvider(model, temp, max_tokens, key)
 
-    if provider == "nvidia":
-        if not config.nvidia_api_key:
-            raise ProviderError("NVIDIA_API_KEY is not set.")
-        from .openai_provider import OpenAIProvider
+    if provider == "fireworks":
+        key = getattr(config, "fireworks_api_key", None) or _env("FIREWORKS_API_KEY")
+        if not key:
+            raise ProviderError("FIREWORKS_API_KEY is not set.")
+        from .fireworks_provider import FireworksProvider
 
-        return OpenAIProvider(
-            model, temp, max_tokens, config.nvidia_api_key, config.nvidia_base_url
-        )
+        return FireworksProvider(model, temp, max_tokens, key)
 
     if provider == "ollama":
         from .ollama_provider import OllamaProvider

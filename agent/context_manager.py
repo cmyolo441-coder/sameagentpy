@@ -18,45 +18,47 @@ from .token_counter import count_message_tokens
 # Conservative max-context per model family (tokens). We leave a 20% margin
 # for the response so the model never truncates mid-answer.
 MODEL_CONTEXT_BUDGET: dict[str, int] = {
-    # 1-million-token context models.
-    "moonshotai/kimi-k2.6": 1_000_000,
-    "z-ai/glm-5.2": 1_000_000,
-    "deepseek-ai/deepseek-v4-pro": 1_000_000,
-    "zyloo/glm-5.1": 1_000_000,
-    # 200k context models.
-    "mimo-v2.5-free": 200_000,
-    "big-pickle": 200_000,
-    "deepseek-v4-flash-free": 200_000,
-    "hy3-free": 200_000,
-    "stepfun-ai/step-3.7-flash": 200_000,
-    # 200k context for everything else.
-    "gpt-4o": 200_000,
-    "gpt-4o-mini": 200_000,
-    "gpt-4-turbo": 200_000,
-    "gpt-4": 200_000,
-    "gpt-3.5-turbo": 200_000,
-    "claude-3-5-sonnet-20241022": 200_000,
-    "claude-3-5-sonnet-latest": 200_000,
-    "claude-3-opus-latest": 200_000,
-    "claude-3-haiku-20240307": 200_000,
-    "gemini-1.5-flash": 200_000,
-    "gemini-1.5-pro": 200_000,
-    "gemini-2.0-flash": 200_000,
-    "llama-3.3-70b-versatile": 200_000,
-    "mistral-large-latest": 200_000,
-    "meta-llama/Llama-3.3-70B-Instruct-Turbo": 200_000,
-    "llama3.1": 200_000,
-    "llama3.2": 200_000,
-    "qwen2.5": 200_000,
+    "gpt-4o": 110_000,
+    "gpt-4o-mini": 110_000,
+    "gpt-4-turbo": 110_000,
+    "gpt-4": 7_000,
+    "gpt-3.5-turbo": 14_000,
+    "claude-3-5-sonnet-20241022": 160_000,
+    "claude-3-5-sonnet-latest": 160_000,
+    "claude-3-opus-latest": 160_000,
+    "claude-3-haiku-20240307": 160_000,
+    "gemini-1.5-flash": 800_000,
+    "gemini-1.5-pro": 1_800_000,
+    "gemini-2.0-flash": 800_000,
+    "llama-3.3-70b-versatile": 110_000,
+    "mistral-large-latest": 110_000,
+    "meta-llama/Llama-3.3-70B-Instruct-Turbo": 110_000,
+    "mimo-v2.5-free": 128_000,
+    "big-pickle": 128_000,
+    "deepseek-v4-flash-free": 128_000,
+    "zyloo/glm-5.1": 110_000,
+    "llama3.1": 110_000,
+    "llama3.2": 110_000,
+    "qwen2.5": 110_000,
 }
 
-DEFAULT_BUDGET = 200_000
+DEFAULT_BUDGET = 128_000
 
 
 def context_budget_for(model: str) -> int:
     """Return the safe working-context budget (tokens) for ``model``."""
     if model in MODEL_CONTEXT_BUDGET:
         return MODEL_CONTEXT_BUDGET[model]
+    # Heuristic by family prefix.
+    lower = model.lower()
+    if "gpt-4o" in lower or "o1" in lower or "o3" in lower:
+        return 110_000
+    if "claude" in lower:
+        return 160_000
+    if "gemini-1.5" in lower or "gemini-2" in lower:
+        return 800_000
+    if "llama-3.3" in lower or "llama3" in lower:
+        return 110_000
     return DEFAULT_BUDGET
 
 

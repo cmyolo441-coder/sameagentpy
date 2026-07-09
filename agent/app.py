@@ -99,7 +99,7 @@ class App:
         }
         cfg.effort = effort.name
         cfg.temperature = effort.temperature
-        cfg.max_tokens = max(cfg.max_tokens, 200000)
+        cfg.max_tokens = max(cfg.max_tokens, 128000)
         cfg.enable_tools = True
         cfg.auto_approve_tools = True
         cfg.max_tool_iterations = max(cfg.max_tool_iterations, 40)
@@ -119,20 +119,7 @@ class App:
         """Run a single goal while in persistent goal mode."""
         from .goal_mode import GoalMode
 
-        try:
-            run = GoalMode(self).run(goal_text)
-        except Exception as exc:
-            self.ui.error(f"Goal Mode error: {exc}")
-            import traceback
-            traceback.print_exc()
-            self.ui.info("Goal Mode encountered an error but will continue running.")
-            self.ui.status_bar(
-                self.config.provider,
-                self.config.resolved_model(),
-                self.conversation.token_estimate(),
-            )
-            return
-
+        run = GoalMode(self).run(goal_text)
         rounds = sum(1 for s in run.steps if s.kind == "execute")
         if run.cancelled:
             self.ui.warn(f"Goal Mode stopped by user after {rounds} round(s).")
@@ -327,7 +314,6 @@ class App:
 
         def on_thinking(iteration: int) -> None:
             if iteration > 0:
-                renderer.finish()
                 renderer.start_thinking("reasoning")
 
         in_tokens = count_message_tokens(

@@ -13,3 +13,7 @@ chat_history/
 .pytest_cache/
 build/
 dist/
+
+# stray archives
+*.zip
+bhcjkbsdjk.zip

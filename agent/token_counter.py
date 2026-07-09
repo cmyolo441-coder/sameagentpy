@@ -48,10 +48,6 @@ PRICING: dict[str, tuple[float, float]] = {
     "big-pickle": (0.0, 0.0),
     "deepseek-v4-flash-free": (0.0, 0.0),
     "zyloo/glm-5.1": (0.0005, 0.0015),
-    "z-ai/glm-5.2": (0.001, 0.002),
-    "stepfun-ai/step-3.7-flash": (0.00020, 0.00115),
-    "moonshotai/kimi-k2.6": (0.002, 0.006),
-    "deepseek-ai/deepseek-v4-pro": (0.00174, 0.00348),
     "llama3.1": (0.0, 0.0),  # local ollama
     "llama3.2": (0.0, 0.0),
     "qwen2.5": (0.0, 0.0),
@@ -65,7 +61,6 @@ _PROVIDER_STRATEGY: dict[str, str] = {
     "groq": "tiktoken",
     "mistral": "tiktoken",
     "together": "tiktoken",
-    "nvidia": "tiktoken",
     "anthropic": "claude_heuristic",
     "gemini": "char_heuristic",
     "ollama": "char_heuristic",

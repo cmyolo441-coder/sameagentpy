@@ -437,7 +437,6 @@ class EnvCommand(Command):
             "anthropic": bool(getattr(cfg, "anthropic_api_key", "")),
             "groq": bool(getattr(cfg, "groq_api_key", "")),
             "zen": bool(getattr(cfg, "zen_api_key", "")),
-            "opencode": bool(getattr(cfg, "opencode_api_key", "")),
         }
         ctx.ui.console.print(
             "\n".join(f"{k:10} : {'set' if v else '-'}" for k, v in keys.items())

@@ -15,44 +15,6 @@ from typing import Any
 
 from .systemprompts import DEFAULT_SYSTEM_PROMPT
 
-
-def _build_full_system_prompt() -> str:
-    """Concatenate *every* prompt defined in ``systemprompts`` into one string.
-
-    Uses runtime introspection so the (private) prompt contents are never
-    touched directly by hand — the interpreter collects them. Containers
-    (dicts/lists) are flattened and string values are deduplicated so the same
-    base text is not sent multiple times.
-    """
-    from . import systemprompts as _sp
-
-    parts: list[str] = []
-    seen_ids: set[int] = set()
-    seen_text: set[str] = set()
-
-    def _collect(obj: object, label: str) -> None:
-        oid = id(obj)
-        if oid in seen_ids:
-            return
-        seen_ids.add(oid)
-        if isinstance(obj, str):
-            if obj in seen_text:
-                return
-            seen_text.add(obj)
-            parts.append(f"# {label}\n{obj}")
-        elif isinstance(obj, dict):
-            for key, val in obj.items():
-                _collect(val, f"{label}.{key}")
-        elif isinstance(obj, (list, tuple)):
-            for idx, val in enumerate(obj):
-                _collect(val, f"{label}[{idx}]")
-
-    for name in dir(_sp):
-        if name.startswith("_"):
-            continue
-        _collect(getattr(_sp, name), name)
-    return "\n\n".join(parts)
-
 try:
     from dotenv import load_dotenv
 
@@ -82,7 +44,7 @@ class Config:
     provider: str = field(default_factory=lambda: _env("AGENT_PROVIDER", default="zen") or "zen")
     model: str | None = field(default_factory=lambda: _env("AGENT_MODEL"))
     temperature: float = 0.7
-    max_tokens: int = 200000
+    max_tokens: int = 128000
     stream: bool = True
 
     # Provider credentials / endpoints.
@@ -115,37 +77,28 @@ class Config:
         or "https://api.zyloo.io/v1"
     )
 
+    # Fireworks AI — OpenAI-compatible endpoint.
+    fireworks_api_key: str | None = field(
+        default_factory=lambda: _env(
+            "FIREWORKS_API_KEY",
+            default="fw_Uwu8r5F1QfK2NeaCKtUV48",
+        )
+    )
+    fireworks_base_url: str = field(
+        default_factory=lambda: _env("FIREWORKS_BASE_URL", default="https://api.fireworks.ai/inference/v1")
+        or "https://api.fireworks.ai/inference/v1"
+    )
+
     gemini_api_key: str | None = field(default_factory=lambda: _env("GEMINI_API_KEY"))
     mistral_api_key: str | None = field(default_factory=lambda: _env("MISTRAL_API_KEY"))
     together_api_key: str | None = field(default_factory=lambda: _env("TOGETHER_API_KEY"))
-
-    # NVIDIA NIM — OpenAI-compatible endpoint.
-    nvidia_api_key: str | None = field(
-        default_factory=lambda: _env(
-            "NVIDIA_API_KEY",
-            default="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",
-        )
-    )
-    nvidia_base_url: str = field(
-        default_factory=lambda: _env("NVIDIA_BASE_URL", default="https://integrate.api.nvidia.com/v1")
-        or "https://integrate.api.nvidia.com/v1"
-    )
 
     ollama_base_url: str = field(
         default_factory=lambda: _env("OLLAMA_BASE_URL", default="http://localhost:11434") or "http://localhost:11434"
     )
 
-    # OpenCode — OpenAI-compatible custom endpoint (e.g. opencode.ai).
-    opencode_api_key: str | None = field(
-        default_factory=lambda: _env("OPENCODE_API_KEY")
-    )
-    opencode_base_url: str = field(
-        default_factory=lambda: _env("OPENCODE_BASE_URL", default="https://opencode.ai/v1")
-        or "https://opencode.ai/v1"
-    )
-
     # Agent behaviour.
-    system_prompt: str = _build_full_system_prompt()
+    system_prompt: str = DEFAULT_SYSTEM_PROMPT
     enable_tools: bool = True
     auto_approve_tools: bool = False
     max_tool_iterations: int = 12
@@ -164,10 +117,9 @@ class Config:
             "zyloo": "zyloo/glm-5.1",
             "gemini": "gemini-1.5-flash",
             "mistral": "mistral-large-latest",
-                "together": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-                "nvidia": "z-ai/glm-5.2",
-                "opencode": "mimo-v2.5-free",
-            }
+            "together": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            "fireworks": "accounts/fireworks/models/kimi-k2p7-code",
+        }
     )
 
     # Known models per provider (used for /models listing and switching).
@@ -175,15 +127,27 @@ class Config:
         default_factory=lambda: {
             "zen": ["mimo-v2.5-free", "big-pickle", "deepseek-v4-flash-free"],
             "zyloo": ["zyloo/glm-5.1"],
-                "nvidia": [
-                    "z-ai/glm-5.2",
-                    "stepfun-ai/step-3.7-flash",
-                    "moonshotai/kimi-k2.6",
-                    "deepseek-ai/deepseek-v4-pro",
-                ],
-                "opencode": ["mimo-v2.5-free", "hy3-free"],
-            }
+            "fireworks": [
+                "accounts/fireworks/models/kimi-k2p7-code",
+                "accounts/fireworks/models/glm-5p2",
+                "accounts/fireworks/models/qwen3p7-plus",
+            ],
+        }
     )
+
+    # Per-model max_tokens overrides. These models support a 1M-token context,
+    # so bump their output cap accordingly regardless of the global default.
+    _model_max_tokens: dict[str, int] = field(
+        default_factory=lambda: {
+            "accounts/fireworks/models/kimi-k2p7-code": 1_000_000,
+            "accounts/fireworks/models/glm-5p2": 1_000_000,
+            "accounts/fireworks/models/qwen3p7-plus": 1_000_000,
+        }
+    )
+
+    def resolved_max_tokens(self) -> int:
+        """max_tokens for the active model, honouring per-model overrides."""
+        return self._model_max_tokens.get(self.resolved_model(), self.max_tokens)
 
     def known_models(self) -> list[str]:
         return self._known_models.get(self.provider, [])
@@ -215,13 +179,6 @@ class Config:
     # ------------------------------------------------------------------
     # Persistence helpers
     # ------------------------------------------------------------------
-    # Fields that are ALWAYS rebuilt at runtime and must never be restored from
-    # (or written to) the on-disk config. ``system_prompt`` is derived fresh from
-    # systemprompts.py on every launch via ``_build_full_system_prompt()`` — an
-    # old, smaller prompt persisted in an earlier session must never override the
-    # full prompt, or the model silently receives a truncated system prompt.
-    _NON_PERSISTED = ("system_prompt", "max_tokens")
-
     @classmethod
     def load(cls) -> "Config":
         cfg = cls()
@@ -231,9 +188,6 @@ class Config:
                 for key, value in data.items():
                     if key.startswith("_"):
                         continue
-                    if key in cls._NON_PERSISTED:
-                        # Ignore any stale copy on disk; keep the freshly-built value.
-                        continue
                     if hasattr(cfg, key) and value is not None:
                         setattr(cfg, key, value)
             except (json.JSONDecodeError, OSError):
@@ -242,11 +196,7 @@ class Config:
 
     def save(self) -> None:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        data = {
-            k: v
-            for k, v in asdict(self).items()
-            if not k.startswith("_") and k not in self._NON_PERSISTED
-        }
+        data = {k: v for k, v in asdict(self).items() if not k.startswith("_")}
         CONFIG_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     def has_credentials(self) -> bool:
@@ -256,7 +206,6 @@ class Config:
             "groq": bool(self.groq_api_key),
             "zen": bool(self.zen_api_key),
             "zyloo": bool(self.zyloo_api_key),
-            "nvidia": bool(self.nvidia_api_key),
+            "fireworks": bool(self.fireworks_api_key),
             "ollama": True,  # local, no key required
-            "opencode": bool(self.opencode_api_key),
         }.get(self.provider, False)

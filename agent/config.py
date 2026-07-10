@@ -77,6 +77,18 @@ class Config:
         or "https://api.zyloo.io/v1"
     )
 
+    # Lovable AI Gateway — OpenAI-compatible endpoint.
+    lovable_api_key: str | None = field(
+        default_factory=lambda: _env(
+            "LOVABLE_API_KEY",
+            default="sk_axbW60GPjGmRwKEhtduCOvIGpiZTW0241WnIE3T+n6t5jMOP070qVdlmEXI6YK8e0kqh/gKsLP9UJ2sKQxyvcSWFi5It4AFK2fiHq2xf0I2EgOb90kxzH4hb6lyTyZvVHZBfVCDbjcgAjTkPK7J5VFtt3bRJ8BIzqyfAf5HZGZFQUunBjbUQydRJUMe8em3IDt3wTirl5yxnKCVytnkeHNVWQOI+1GB263fxexz2Oa9GdV94GLTL2NcP4wzKiCSd0TnDig==",
+        )
+    )
+    lovable_base_url: str = field(
+        default_factory=lambda: _env("LOVABLE_BASE_URL", default="https://ai.gateway.lovable.dev/v1")
+        or "https://ai.gateway.lovable.dev/v1"
+    )
+
     # Fireworks AI — OpenAI-compatible endpoint.
     fireworks_api_key: str | None = field(
         default_factory=lambda: _env(
@@ -115,6 +127,7 @@ class Config:
             "ollama": "llama3.1",
             "zen": "mimo-v2.5-free",
             "zyloo": "zyloo/glm-5.1",
+            "lovable": "openai/gpt-5.5",
             "gemini": "gemini-1.5-flash",
             "mistral": "mistral-large-latest",
             "together": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
@@ -127,6 +140,7 @@ class Config:
         default_factory=lambda: {
             "zen": ["mimo-v2.5-free", "big-pickle", "deepseek-v4-flash-free"],
             "zyloo": ["zyloo/glm-5.1"],
+            "lovable": ["openai/gpt-5.5", "openai/gpt-5.4"],
             "fireworks": [
                 "accounts/fireworks/models/kimi-k2p7-code",
                 "accounts/fireworks/models/glm-5p2",
@@ -206,6 +220,7 @@ class Config:
             "groq": bool(self.groq_api_key),
             "zen": bool(self.zen_api_key),
             "zyloo": bool(self.zyloo_api_key),
+            "lovable": bool(self.lovable_api_key),
             "fireworks": bool(self.fireworks_api_key),
             "ollama": True,  # local, no key required
         }.get(self.provider, False)
